@@ -34,7 +34,7 @@ export function Composer({
           onKeyDown={onKeyDown}
           rows={1}
           placeholder="Message the local model…"
-          className="max-h-40 min-h-[40px] flex-1 resize-none bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100 dark:placeholder:text-gray-500"
+          className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100 dark:placeholder:text-gray-500"
         />
         {isStreaming ? (
           <button

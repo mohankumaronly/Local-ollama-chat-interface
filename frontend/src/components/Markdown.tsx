@@ -6,7 +6,7 @@ import { CodeBlock } from './CodeBlock';
 export function Markdown({ content }: { content: string }) {
   return (
     <div className="
-      prose prose-base max-w-none break-words dark:prose-invert
+      prose prose-base max-w-none wrap-break-word dark:prose-invert
       prose-headings:scroll-mt-24
       prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-h4:text-lg
       prose-p:leading-7
