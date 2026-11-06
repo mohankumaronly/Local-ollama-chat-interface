@@ -10,7 +10,7 @@ export function MessageBubble({ message }: { message: Message }) {
   if (isUser) {
     return (
       <div className="flex justify-end gap-3">
-        <div className="max-w-[85%] rounded-2xl bg-blue-600 px-4 py-3 text-sm leading-relaxed text-white shadow-sm whitespace-pre-wrap break-words">
+        <div className="max-w-[85%] rounded-2xl bg-blue-600 px-4 py-3 text-sm leading-relaxed text-white shadow-sm whitespace-pre-wrap wrap-break-word">
           {message.content}
         </div>
         <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gray-300 text-gray-700 dark:bg-gray-700 dark:text-gray-200">
