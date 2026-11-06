@@ -22,3 +22,13 @@ html {
 .prose :where(code):not(:where(pre code))::after {
   content: "";
 }
+
+/* Slightly larger default body text for the whole app */
+.prose {
+  --tw-prose-body: 1rem;        /* 16px body */
+  --tw-prose-h1: 2rem;          /* 32px H1 */
+  --tw-prose-h2: 1.5rem;        /* 24px H2 */
+  --tw-prose-h3: 1.25rem;       /* 20px H3 */
+  --tw-prose-h4: 1.125rem;      /* 18px H4 */
+  --tw-prose-code: 0.875rem;    /* 14px inline code */
+}

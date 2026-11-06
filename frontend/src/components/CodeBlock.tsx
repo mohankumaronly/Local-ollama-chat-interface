@@ -39,7 +39,7 @@ export function CodeBlock({
           <span>{copied ? 'Copied!' : 'Copy code'}</span>
         </button>
       </div>
-      <pre className="max-w-full overflow-x-auto p-4 text-sm">
+      <pre className="max-w-full overflow-x-auto p-4 text-[0.875rem] leading-6">
         <code className={className}>{children}</code>
       </pre>
     </div>
