@@ -1,6 +1,17 @@
 import { useState, type ReactNode } from 'react';
 import { Check, Copy } from 'lucide-react';
 
+/** Recursively extract plain text from React nodes (fixes the [object Object] copy bug). */
+function nodeToText(node: ReactNode): string {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(nodeToText).join('');
+  if (typeof node === 'object' && 'props' in node) {
+    return nodeToText((node as { props: { children?: ReactNode } }).props.children);
+  }
+  return '';
+}
+
 export function CodeBlock({
   className,
   children,
@@ -10,13 +21,16 @@ export function CodeBlock({
 }) {
   const [copied, setCopied] = useState(false);
 
-  // Only show label when the model actually specified a language
-  const rawLang = className?.replace(/language-/, '') ?? '';
-  const language = rawLang && rawLang !== 'text' ? rawLang : null;
+  // Clean up the class name: "hljs language-json" -> "json"
+  let language = 'text';
+  if (className) {
+    const match = /language-(\w+)/.exec(className);
+    if (match) language = match[1];
+  }
 
   const copy = async () => {
     try {
-      const text = String(children).replace(/\n$/, '');
+      const text = nodeToText(children).replace(/\n$/, '');
       await navigator.clipboard.writeText(text);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
@@ -28,7 +42,8 @@ export function CodeBlock({
   return (
     <div className="group my-4 overflow-hidden rounded-xl border border-gray-200 bg-[#0d1117] dark:border-gray-700">
       <div className="flex items-center justify-between border-b border-gray-200/60 bg-[#161b22] px-3 py-1.5 text-xs text-gray-400">
-        <span className="font-mono">{language ?? 'code'}</span>
+        {/* Only shows "json", "css", etc. */}
+        <span className="font-mono">{language}</span>
         <button
           type="button"
           onClick={copy}

@@ -4,7 +4,9 @@ import type {
   OllamaChatChunk,
   OllamaModel,
   OllamaTagsResponse,
+  ToolCall,
 } from '../types';
+import type { OllamaTool } from './tools/definitions';
 
 /** Default endpoint, overridable at build time via VITE_OLLAMA_URL. */
 export const DEFAULT_OLLAMA_URL =
@@ -26,10 +28,6 @@ export function isValidUrl(url: string): boolean {
   }
 }
 
-/**
- * GET /api/tags — list installed models.
- * Throws a descriptive error on failure.
- */
 export async function listModels(
   baseUrl: string,
   signal?: AbortSignal,
@@ -47,10 +45,6 @@ export async function listModels(
   return data.models ?? [];
 }
 
-/**
- * Lightweight health check with a timeout. Returns true if /api/tags responds OK.
- * Never throws — always resolves to a boolean.
- */
 export async function checkHealth(
   baseUrl: string,
   timeoutMs = 8000,
@@ -72,11 +66,8 @@ export async function checkHealth(
 }
 
 export interface StreamProgress {
-  /** Tokens received so far (server eval_count when available, else heuristic). */
   tokens: number;
-  /** Seconds elapsed since the first token arrived. */
   elapsedMs: number;
-  /** Live tokens/second. */
   tokensPerSecond: number;
 }
 
@@ -85,24 +76,23 @@ export interface StreamChatOptions {
   model: string;
   messages: Pick<Message, 'role' | 'content'>[];
   signal?: AbortSignal;
+  /** ★ NEW — tools available to the model (build mode only). */
+  tools?: OllamaTool[];
   onToken: (text: string) => void;
-  /** Fired while streaming with live token/speed estimates. */
   onProgress?: (progress: StreamProgress) => void;
-  /** Fired once at the end with authoritative Ollama timing stats. */
   onDone?: (stats: MessageStats) => void;
+  /** ★ NEW — called with any tool calls the model requested. */
+  onToolCalls?: (calls: ToolCall[]) => void;
   options?: {
     temperature?: number;
     num_ctx?: number;
   };
 }
 
-/** Rough token estimate when the server hasn't reported counts yet. */
 function estimateTokens(text: string): number {
-  // ~4 chars per token is a reasonable approximation for English + code.
   return Math.max(1, Math.round(text.length / 4));
 }
 
-/** Build final stats from Ollama's done chunk (durations are nanoseconds). */
 function buildStats(chunk: OllamaChatChunk, full: string): MessageStats {
   const nsToMs = (ns?: number) => (ns ? ns / 1_000_000 : 0);
   const nsToSec = (ns?: number) => (ns ? ns / 1_000_000_000 : 0);
@@ -112,10 +102,8 @@ function buildStats(chunk: OllamaChatChunk, full: string): MessageStats {
   const evalSec = nsToSec(chunk.eval_duration);
   const promptSec = nsToSec(chunk.prompt_eval_duration);
 
-  const tokensPerSecond =
-    evalSec > 0 ? completionTokens / evalSec : 0;
-  const promptTokensPerSecond =
-    promptSec > 0 ? promptTokens / promptSec : 0;
+  const tokensPerSecond = evalSec > 0 ? completionTokens / evalSec : 0;
+  const promptTokensPerSecond = promptSec > 0 ? promptTokens / promptSec : 0;
 
   return {
     promptTokens,
@@ -130,18 +118,20 @@ function buildStats(chunk: OllamaChatChunk, full: string): MessageStats {
 
 /**
  * POST /api/chat with streaming enabled.
- * Ollama replies with NDJSON (one JSON object per line), so we buffer
- * raw text and split on newlines to avoid parsing half-lines.
- * Returns the full assistant text once complete.
+ * When `tools` is provided, the request includes them and any
+ * `tool_calls` returned by the model are collected and passed to
+ * `onToolCalls` when the stream finishes.
  */
 export async function streamChat({
   baseUrl,
   model,
   messages,
   signal,
+  tools,
   onToken,
   onProgress,
   onDone,
+  onToolCalls,
   options,
 }: StreamChatOptions): Promise<string> {
   const res = await fetch(`${normalizeUrl(baseUrl)}/api/chat`, {
@@ -152,6 +142,9 @@ export async function streamChat({
       model,
       messages,
       stream: true,
+      // ★ Only include tools when non-empty — some older Ollama
+      // builds error on `tools: []`.
+      ...(tools && tools.length > 0 ? { tools } : {}),
       options: {
         temperature: options?.temperature ?? 0.7,
         ...(options?.num_ctx ? { num_ctx: options.num_ctx } : {}),
@@ -177,14 +170,13 @@ export async function streamChat({
   let full = '';
   let chunkCount = 0;
   let firstTokenAt = 0;
+  const collectedToolCalls: ToolCall[] = [];
 
-  // Emit a progress update every N tokens to limit re-renders.
   const PROGRESS_EVERY = 3;
   const emitProgress = () => {
     if (!onProgress || !firstTokenAt) return;
     const elapsedMs = performance.now() - firstTokenAt;
     const elapsedSec = elapsedMs / 1000;
-    // Prefer real streamed chunk count; ~1 token per chunk for most models.
     const tokens = chunkCount || estimateTokens(full);
     const tokensPerSecond = elapsedSec > 0 ? tokens / elapsedSec : 0;
     onProgress({ tokens, elapsedMs, tokensPerSecond });
@@ -199,6 +191,13 @@ export async function streamChat({
       onToken(token);
       if (chunkCount % PROGRESS_EVERY === 0) emitProgress();
     }
+
+    // ★ Collect tool calls if present
+    const rawCalls = (chunk.message as { tool_calls?: ToolCall[] })?.tool_calls;
+    if (rawCalls && rawCalls.length > 0) {
+      collectedToolCalls.push(...rawCalls);
+    }
+
     if (chunk.done) {
       onDone?.(buildStats(chunk, full));
       return true;
@@ -223,26 +222,33 @@ export async function streamChat({
         try {
           chunk = JSON.parse(line) as OllamaChatChunk;
         } catch {
-          continue; // skip malformed partial lines
+          continue;
         }
 
-        if (handleChunk(chunk)) return full;
+        if (handleChunk(chunk)) {
+          if (collectedToolCalls.length > 0) {
+            onToolCalls?.(collectedToolCalls);
+          }
+          return full;
+        }
       }
     }
 
-    // Flush any trailing buffered line that lacked a newline.
     const tail = buffer.trim();
     if (tail) {
       try {
         const chunk = JSON.parse(tail) as OllamaChatChunk;
         handleChunk(chunk);
       } catch {
-        // ignore
+        /* ignore */
       }
     }
   } finally {
     reader.releaseLock();
   }
 
+  if (collectedToolCalls.length > 0) {
+    onToolCalls?.(collectedToolCalls);
+  }
   return full;
 }
