@@ -81,7 +81,7 @@ model,
                       : 'bg-red-500'
                 }`}
               />
-              <span className="max-w-[140px] truncate font-mono">
+              <span className="max-w-35 truncate font-mono">
                 {baseUrl.replace(/^https?:\/\//, '')}
               </span>
             </button>

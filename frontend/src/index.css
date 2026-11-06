@@ -1,6 +1,7 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@import "highlight.js/styles/github-dark.css";
 
-/* Enable class-based dark mode (Tailwind v4) */
 @custom-variant dark (&:where(.dark, .dark *));
 
 html {
@@ -16,18 +17,8 @@ html {
   scrollbar-color: #475569 transparent;
 }
 
-/* Keep markdown pre/code from fighting the CodeBlock wrapper */
-.prose pre {
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  overflow: visible;
-}
+/* Kill inline-code backticks/quotes from the typography plugin */
 .prose :where(code):not(:where(pre code))::before,
 .prose :where(code):not(:where(pre code))::after {
   content: "";
-}
-.prose pre code {
-  background: transparent;
-  padding: 0;
 }
