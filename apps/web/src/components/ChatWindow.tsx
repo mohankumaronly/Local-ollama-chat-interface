@@ -1,5 +1,5 @@
 import type { Message } from '../types';
-import type { StreamProgress } from '../lib/ollama';
+import type { StreamProgress } from '../hooks/useChat';
 import { MessageBubble } from './MessageBubble';
 import { EmptyState } from './EmptyState';
 import { useAutoScroll } from '../hooks/useAutoScroll';

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   DEFAULT_OLLAMA_URL,
-  checkHealth,
   isValidUrl,
   listModels,
   normalizeUrl,
 } from '../lib/ollama';
+import { checkBackendHealth } from '../lib/api';
 import type { OllamaModel } from '../types';
 
 const STORAGE_KEY = 'ollama-chat-endpoint';
@@ -13,19 +13,15 @@ const STORAGE_KEY = 'ollama-chat-endpoint';
 export type ConnectionStatus = 'checking' | 'online' | 'offline';
 
 export interface ConnectionState {
-  /** Active base URL (normalized). */
+  /** Active Ollama base URL (normalized) — used for the model picker. */
   baseUrl: string;
+  /** Backend reachability (probes /api/v1/health). Drives the online dot. */
   status: ConnectionStatus;
   models: OllamaModel[];
-  /** Human-readable error from the last failed attempt, if any. */
   error: string | null;
-  /** Whether models are being loaded. */
   loadingModels: boolean;
-  /** Persist a new endpoint and re-check. Returns false if URL is invalid. */
   setEndpoint: (url: string) => boolean;
-  /** Re-run the health check + model load for the current endpoint. */
   retry: () => void;
-  /** Reset to the default local endpoint. */
   reset: () => void;
 }
 
@@ -47,7 +43,6 @@ export function useConnection(): ConnectionState {
   const [loadingModels, setLoadingModels] = useState(true);
   const [nonce, setNonce] = useState(0);
 
-  // Tracks the latest check so stale async results are ignored.
   const checkIdRef = useRef(0);
 
   useEffect(() => {
@@ -55,8 +50,6 @@ export function useConnection(): ConnectionState {
     const controller = new AbortController();
 
     (async () => {
-      // Yield to a microtask so these state updates are not synchronous
-      // within the effect body (avoids cascading-render warnings).
       await Promise.resolve();
       if (myId !== checkIdRef.current) return;
 
@@ -64,16 +57,18 @@ export function useConnection(): ConnectionState {
       setLoadingModels(true);
       setError(null);
 
-      const healthy = await checkHealth(baseUrl);
-      if (myId !== checkIdRef.current) return; // superseded
+      // 1) Backend must be up — this is what chat actually depends on.
+      const backendOk = await checkBackendHealth();
+      if (myId !== checkIdRef.current) return;
 
-      if (!healthy) {
+      if (!backendOk) {
         setStatus('offline');
         setLoadingModels(false);
-        setError(`Cannot reach Ollama at ${baseUrl}`);
+        setError('Cannot reach the backend at /api/v1/health (is the server running?)');
         return;
       }
 
+      // 2) Load available models from Ollama for the picker.
       try {
         const list = await listModels(baseUrl, controller.signal);
         if (myId !== checkIdRef.current) return;
@@ -83,9 +78,11 @@ export function useConnection(): ConnectionState {
       } catch (err) {
         if (myId !== checkIdRef.current) return;
         if ((err as Error).name === 'AbortError') return;
-        setStatus('offline');
+        // Backend is fine but Ollama models failed — still mark online so chat
+        // works; surface the model-list error separately.
+        setStatus('online');
         setLoadingModels(false);
-        setError((err as Error).message);
+        setError(`Backend OK, but could not list models at ${baseUrl}`);
       }
     })();
 

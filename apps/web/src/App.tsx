@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useConnection } from './hooks/useConnection';
 import { useChat } from './hooks/useChat';
 import { useTheme } from './hooks/useTheme';
@@ -8,6 +8,7 @@ import { Composer } from './components/Composer';
 import { ThemeToggle } from './components/ThemeToggle';
 import { SettingsModal } from './components/SettingsModal';
 import { Settings } from 'lucide-react';
+import { listChats, type ChatSummary } from './lib/api';
 
 const DEFAULT_MODEL = 'llama3.2';
 
@@ -26,21 +27,45 @@ const App = () => {
 
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [chats, setChats] = useState<ChatSummary[]>([]);
 
-  // Derive the effective model: fall back to the first available model
-  // when the current selection is not present in the latest model list.
+  // Derive the effective model. If the current selection isn't available,
+  // prefer a plain completion model (e.g. llama3.2) over "thinking" models
+  // (qwen3.x) whose reasoning tokens can leave content empty for a long time.
+  const fallbackModel = (() => {
+    if (models.length === 0) return selectedModel;
+    const preferred = models.find((m) => /^llama/i.test(m.name));
+    return (preferred ?? models[0]).name;
+  })();
   const model =
     models.length > 0 && !models.some((m) => m.name === selectedModel)
-      ? models[0].name
+      ? fallbackModel
       : selectedModel;
 
-  const { messages, isStreaming, progress, error, send, stop, clear } = useChat(
-baseUrl,
-model,
-);
+  const handleChatCreated = useCallback((chat: { id: number; title: string }) => {
+    const now = new Date().toISOString();
+    setChats((prev) => [
+      { id: chat.id, title: chat.title, createdAt: now, updatedAt: now },
+      ...prev,
+    ]);
+  }, []);
+
+  const { messages, chatId, isStreaming, progress, error, send, stop, clear, loadChat } =
+    useChat({ model, onChatCreated: handleChatCreated });
+
+  // Load saved chats on mount.
+  useEffect(() => {
+    listChats()
+      .then(setChats)
+      .catch((e) => console.error('Failed to load chats', e));
+  }, []);
 
   const handleSuggestion = (text: string) => {
     void send(text);
+  };
+
+  const handleSelectChat = (id: number) => {
+    void loadChat(id);
   };
 
   const offline = status === 'offline';
@@ -57,6 +82,9 @@ model,
         loadingModels={loadingModels}
         onOpenSettings={() => setSettingsOpen(true)}
         onRetry={retry}
+        chats={chats}
+        activeChatId={chatId}
+        onSelectChat={handleSelectChat}
       />
 
       <main className="flex min-w-0 flex-1 flex-col">
@@ -107,8 +135,8 @@ model,
 
         {offline && (
           <div className="m-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
-            <p className="mb-1 font-semibold">Cannot reach Ollama</p>
-            <p className="mb-2 break-all font-mono text-xs">{baseUrl}</p>
+            <p className="mb-1 font-semibold">Cannot reach the backend</p>
+            <p className="mb-2 break-all font-mono text-xs">/api/v1/health</p>
             {connError && <p className="mb-2 text-xs opacity-80">{connError}</p>}
             <div className="flex flex-wrap gap-2">
               <button
@@ -123,15 +151,14 @@ model,
                 onClick={() => setSettingsOpen(true)}
                 className="rounded-lg border border-amber-400 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-900"
               >
-                Change endpoint
+                Connection settings
               </button>
             </div>
             <p className="mt-2 text-xs opacity-80">
-              Local: start with{' '}
+              Make sure the API server is running:{' '}
               <code className="rounded bg-amber-100 px-1 font-mono dark:bg-amber-900">
-                OLLAMA_ORIGINS="http://localhost:5173" ollama serve
+                npm run dev:server
               </code>
-              . Remote/tunnel: ensure the endpoint is up and allows your origin.
             </p>
           </div>
         )}

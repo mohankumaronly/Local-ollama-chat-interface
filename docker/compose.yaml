@@ -1,0 +1,54 @@
+name: local-ollama-chat
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: local-ollama-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ollama}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ollama_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-ollama_chat}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ollama} -d ${POSTGRES_DB:-ollama_chat}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  server:
+    build:
+      context: ..                    # repo root — Dockerfile needs root lockfile + manifests
+      dockerfile: apps/server/Dockerfile
+    container_name: local-ollama-server
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Use service name 'db' and INTERNAL port 5432 (not host-mapped 5433)
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ollama}:${POSTGRES_PASSWORD:-ollama_secret}@db:5432/${POSTGRES_DB:-ollama_chat}
+      # Reach host's Ollama from inside the container
+      OLLAMA_URL: http://host.docker.internal:11434
+      # Fail fast if token not set — no silent empty-token deployment
+      API_TOKEN: ${API_TOKEN:?API_TOKEN must be set in docker/.env}
+    ports:
+      - "127.0.0.1:3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/v1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  pgdata:
+    name: local-ollama-pgdata

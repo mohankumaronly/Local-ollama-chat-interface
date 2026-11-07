@@ -1,6 +1,7 @@
-import { MessageSquarePlus, Sparkles, Settings, RefreshCw } from 'lucide-react';
+import { MessageSquarePlus, Sparkles, Settings, RefreshCw, MessageSquare } from 'lucide-react';
 import type { OllamaModel } from '../types';
 import type { ConnectionStatus } from '../hooks/useConnection';
+import type { ChatSummary } from '../lib/api';
 
 function StatusDot({ status }: { status: ConnectionStatus }) {
   const color =
@@ -33,6 +34,9 @@ export function Sidebar({
   loadingModels,
   onOpenSettings,
   onRetry,
+  chats,
+  activeChatId,
+  onSelectChat,
 }: {
   models: OllamaModel[];
   model: string;
@@ -43,6 +47,9 @@ export function Sidebar({
   loadingModels: boolean;
   onOpenSettings: () => void;
   onRetry: () => void;
+  chats: ChatSummary[];
+  activeChatId?: number;
+  onSelectChat: (id: number) => void;
 }) {
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900 md:flex">
@@ -81,7 +88,41 @@ export function Sidebar({
         ))}
       </select>
 
-      <div className="mt-4 rounded-lg border border-gray-200 bg-white p-2.5 dark:border-gray-700 dark:bg-gray-800">
+      {/* Chat history */}
+      <div className="mt-4 flex min-h-0 flex-1 flex-col">
+        <label className="mb-1 px-1 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          Chats
+        </label>
+        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+          {chats.length === 0 && (
+            <p className="px-1 py-2 text-xs text-gray-400 dark:text-gray-500">
+              No saved chats yet.
+            </p>
+          )}
+          {chats.map((c) => {
+            const active = c.id === activeChatId;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => onSelectChat(c.id)}
+                className={[
+                  'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors',
+                  active
+                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200'
+                    : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800',
+                ].join(' ')}
+                title={c.title}
+              >
+                <MessageSquare size={13} className="shrink-0 opacity-70" />
+                <span className="truncate">{c.title}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-lg border border-gray-200 bg-white p-2.5 dark:border-gray-700 dark:bg-gray-800">
         <div className="mb-1 flex items-center justify-between">
           <span className="text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
             Connection
@@ -114,7 +155,7 @@ export function Sidebar({
       </div>
 
       <div className="mt-auto px-1 pt-4 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
-        No database. Conversations live only in memory and disappear on reload.
+        Conversations are saved to your local Postgres database.
       </div>
     </aside>
   );
