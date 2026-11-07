@@ -8,7 +8,7 @@ import { Composer } from './components/Composer';
 import { ThemeToggle } from './components/ThemeToggle';
 import { SettingsModal } from './components/SettingsModal';
 import { Settings } from 'lucide-react';
-import { listChats, type ChatSummary } from './lib/api';
+import { listChats, hasApiToken, type ChatSummary } from './lib/api';
 
 const DEFAULT_MODEL = 'llama3.2';
 
@@ -28,6 +28,8 @@ const App = () => {
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [chats, setChats] = useState<ChatSummary[]>([]);
+  // Show amber banner on first render if no API token is stored
+  const [showTokenBanner, setShowTokenBanner] = useState(() => !hasApiToken());
 
   // Derive the effective model. If the current selection isn't available,
   // prefer a plain completion model (e.g. llama3.2) over "thinking" models
@@ -132,6 +134,22 @@ const App = () => {
             <ThemeToggle theme={theme} onToggle={toggle} />
           </div>
         </header>
+
+        {/* No-token banner — shown on first visit until token is saved in Settings */}
+        {showTokenBanner && !hasApiToken() && (
+          <div className="flex items-center justify-between gap-3 border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/60 dark:text-amber-100">
+            <span>
+              No API token configured — API calls will return 401. Paste your token in Settings.
+            </span>
+            <button
+              type="button"
+              onClick={() => { setSettingsOpen(true); setShowTokenBanner(false); }}
+              className="shrink-0 rounded-lg border border-amber-600 px-3 py-1 text-xs font-medium hover:bg-amber-100 dark:border-amber-500 dark:hover:bg-amber-900/40"
+            >
+              Open Settings
+            </button>
+          </div>
+        )}
 
         {offline && (
           <div className="m-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">

@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState } from 'react';
 import { X, Check, Loader2, AlertCircle, RotateCcw, Server } from 'lucide-react';
 import { isValidUrl, normalizeUrl } from '../lib/ollama';
-import { testOllama } from '../lib/api';
+import { testOllama, setApiToken, hasApiToken } from '../lib/api';
 import type { ConnectionStatus } from '../hooks/useConnection';
 
 interface Props {
@@ -46,6 +46,8 @@ function SettingsForm({
 }: Omit<Props, 'open'>) {
   const [value, setValue] = useState(currentUrl);
   const [test, setTest] = useState<TestState>({ kind: 'idle' });
+  const [tokenInput, setTokenInput] = useState('');
+  const [tokenSaved, setTokenSaved] = useState(hasApiToken());
 
   // Close on Escape.
   useEffect(() => {
@@ -71,6 +73,20 @@ function SettingsForm({
     } else {
       setTest({ kind: 'fail', message: result.error });
     }
+  };
+
+  const saveToken = () => {
+    const t = tokenInput.trim();
+    if (!t) return;
+    setApiToken(t);
+    setTokenSaved(true);
+    setTokenInput('');
+  };
+
+  const clearToken = () => {
+    setApiToken(null);
+    setTokenSaved(false);
+    setTokenInput('');
   };
 
   const save = () => {
@@ -143,6 +159,52 @@ function SettingsForm({
                 <AlertCircle size={12} /> Must start with http:// or https://
               </p>
             )}
+          </div>
+
+          {/* API Token */}
+          <div>
+            <label htmlFor="api-token" className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              API Token
+            </label>
+            {tokenSaved ? (
+              <div className="flex items-center gap-2">
+                <Check size={14} className="text-emerald-500" />
+                <span className="text-xs text-emerald-600 dark:text-emerald-400">Token saved</span>
+                <button
+                  type="button"
+                  onClick={clearToken}
+                  className="ml-auto rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                >
+                  Clear
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  id="api-token"
+                  type="password"
+                  value={tokenInput}
+                  onChange={(e) => setTokenInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') saveToken(); }}
+                  placeholder="Paste your API token…"
+                  spellCheck={false}
+                  className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-blue-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:focus:border-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={saveToken}
+                  disabled={!tokenInput.trim()}
+                  className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Save
+                </button>
+              </div>
+            )}
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Required for all API calls. Copy from{' '}
+              <code className="rounded bg-gray-100 px-1 font-mono dark:bg-gray-800">API_TOKEN=</code>{' '}
+              in <code className="rounded bg-gray-100 px-1 font-mono dark:bg-gray-800">apps/server/.env</code>.
+            </p>
           </div>
 
           <div>

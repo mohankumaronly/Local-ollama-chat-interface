@@ -14,10 +14,54 @@ export type { ServerStreamEvent, ChatSummary, ChatMessage, MessagesResponse, Hea
 // ServerMessage was the old name for ChatMessage — alias for backwards compat.
 export type ServerMessage = ChatMessage;
 
+// ============================================================
+// Token helpers — read/write from localStorage
+// ============================================================
+
+const TOKEN_STORAGE_KEY = 'apiToken';
+
+function getApiToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setApiToken(token: string | null): void {
+  try {
+    if (token) localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    else localStorage.removeItem(TOKEN_STORAGE_KEY);
+  } catch {
+    // localStorage unavailable (e.g. private browsing with strict settings)
+  }
+}
+
+export function hasApiToken(): boolean {
+  return !!getApiToken();
+}
+
+/**
+ * Builds a headers object that includes Authorization if a token is stored.
+ * Any extra headers passed in are merged; they can override Authorization
+ * (e.g. Content-Type).
+ */
+function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const token = getApiToken();
+  const headers: Record<string, string> = { ...extra };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+}
+
+// ============================================================
+// API calls
+// ============================================================
+
 export async function checkBackendHealth(timeoutMs = 8000): Promise<boolean> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    // Health endpoint is exempt from auth — no authHeaders() needed
     const res = await fetch('/api/v1/health', { cache: 'no-store', signal: controller.signal });
     if (!res.ok) return false;
     const body = (await res.json()) as HealthResponse;
@@ -30,13 +74,13 @@ export async function checkBackendHealth(timeoutMs = 8000): Promise<boolean> {
 }
 
 export async function listChats(): Promise<ChatSummary[]> {
-  const res = await fetch('/api/v1/chats');
+  const res = await fetch('/api/v1/chats', { headers: authHeaders() });
   if (!res.ok) throw new Error(`listChats failed: ${res.status}`);
   return res.json();
 }
 
 export async function getMessages(chatId: number): Promise<MessagesResponse> {
-  const res = await fetch(`/api/v1/chats/${chatId}/messages`);
+  const res = await fetch(`/api/v1/chats/${chatId}/messages`, { headers: authHeaders() });
   if (!res.ok) throw new Error(`getMessages failed: ${res.status}`);
   return res.json();
 }
@@ -51,7 +95,7 @@ export async function* streamChatApi(
 ): AsyncGenerator<ServerStreamEvent> {
   const res = await fetch('/api/v1/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(params),
     signal,
   });
@@ -103,7 +147,10 @@ export async function* streamChatApi(
  */
 export async function testOllama(url: string): Promise<OllamaTestResponse> {
   try {
-    const res = await fetch(`/api/v1/ollama/test?url=${encodeURIComponent(url)}`);
+    const res = await fetch(
+      `/api/v1/ollama/test?url=${encodeURIComponent(url)}`,
+      { headers: authHeaders() },
+    );
     return (await res.json()) as OllamaTestResponse;
   } catch (err) {
     return { ok: false, error: `Unexpected error: ${(err as Error).message}` };
