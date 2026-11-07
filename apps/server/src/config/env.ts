@@ -6,6 +6,17 @@ const EnvSchema = z.object({
   OLLAMA_URL: z.string().url().default('http://localhost:11434'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   API_TOKEN: z.string().min(16, 'API_TOKEN must be at least 16 chars'),
+  // Comma-separated hostname patterns the backend is allowed to call.
+  // Wildcards: *.trycloudflare.com matches any subdomain.
+  OLLAMA_ALLOWED_HOSTS: z
+    .string()
+    .default('*.trycloudflare.com,localhost,127.0.0.1,host.docker.internal')
+    .transform((v) =>
+      v
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean),
+    ),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

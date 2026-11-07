@@ -5,10 +5,11 @@ import type {
   ChatMessage,
   MessagesResponse,
   HealthResponse,
+  OllamaTestResponse,
 } from '@local-ollama/shared';
 
 // Re-export so existing internal consumers don't need to change their imports.
-export type { ServerStreamEvent, ChatSummary, ChatMessage, MessagesResponse, HealthResponse };
+export type { ServerStreamEvent, ChatSummary, ChatMessage, MessagesResponse, HealthResponse, OllamaTestResponse };
 
 // ServerMessage was the old name for ChatMessage — alias for backwards compat.
 export type ServerMessage = ChatMessage;
@@ -45,7 +46,7 @@ export async function getMessages(chatId: number): Promise<MessagesResponse> {
  * The caller iterates; abort via the passed AbortSignal.
  */
 export async function* streamChatApi(
-  params: { chatId?: number; message: string; model: string },
+  params: { chatId?: number; message: string; model: string; ollamaUrl?: string },
   signal?: AbortSignal,
 ): AsyncGenerator<ServerStreamEvent> {
   const res = await fetch('/api/v1/chat', {
@@ -92,5 +93,19 @@ export async function* streamChatApi(
     }
   } finally {
     reader.releaseLock();
+  }
+}
+
+/**
+ * Calls the backend's /api/v1/ollama/test?url=<target> endpoint.
+ * Returns { ok: true, models } or { ok: false, error }.
+ * Never throws — network failures are returned as ok:false.
+ */
+export async function testOllama(url: string): Promise<OllamaTestResponse> {
+  try {
+    const res = await fetch(`/api/v1/ollama/test?url=${encodeURIComponent(url)}`);
+    return (await res.json()) as OllamaTestResponse;
+  } catch (err) {
+    return { ok: false, error: `Unexpected error: ${(err as Error).message}` };
   }
 }

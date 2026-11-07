@@ -2,11 +2,15 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { streamChat } from './chat.service.js';
 import * as repo from './chat.repo.js';
+import { env } from '../../config/env.js';
+import { isAllowedOllamaUrl, ensureModelAvailable } from '../ollama/ollama.client.js';
 
 const ChatBody = z.object({
   chatId: z.number().int().positive().optional(),
   message: z.string().min(1, 'message required').max(32_000),
   model: z.string().min(1).default('llama3.2'),
+  // Optional: client-supplied Ollama target. Omit to use env.OLLAMA_URL.
+  ollamaUrl: z.string().url().optional(),
 });
 
 export async function postChat(req: Request, res: Response): Promise<void> {
@@ -16,7 +20,31 @@ export async function postChat(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const { chatId, message, model } = parsed.data;
+  const { chatId, message, model, ollamaUrl } = parsed.data;
+
+  // Resolve target: validated client override or env default (backward-compat)
+  let baseUrl = env.OLLAMA_URL;
+  if (ollamaUrl) {
+    if (!isAllowedOllamaUrl(ollamaUrl)) {
+      res.status(400).json({
+        error: 'URL not allowed',
+        message: `Hostname must match OLLAMA_ALLOWED_HOSTS. Allowed: ${env.OLLAMA_ALLOWED_HOSTS.join(', ')}`,
+      });
+      return;
+    }
+    baseUrl = ollamaUrl.replace(/\/+$/, ''); // strip trailing slashes
+  }
+
+  // Fail fast before opening SSE if model isn't on the target
+  try {
+    await ensureModelAvailable(baseUrl, model);
+  } catch (err) {
+    res.status(400).json({
+      error: 'Model unavailable',
+      message: (err as Error).message,
+    });
+    return;
+  }
 
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
@@ -27,8 +55,6 @@ export async function postChat(req: Request, res: Response): Promise<void> {
 
   const abort = new AbortController();
   // Abort the Ollama stream only if the CLIENT disconnects before we finish.
-  // Use res 'close' (not req 'close'): with express.json() the req stream is
-  // already consumed, so its 'close' can fire early and would abort valid calls.
   res.on('close', () => {
     if (!res.writableEnded) abort.abort();
   });
@@ -42,6 +68,7 @@ export async function postChat(req: Request, res: Response): Promise<void> {
       chatId,
       userMessage: message,
       model,
+      baseUrl,
       signal: abort.signal,
     })) {
       send(ev);

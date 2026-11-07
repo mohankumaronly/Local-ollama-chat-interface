@@ -33,6 +33,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-ollama}:${POSTGRES_PASSWORD:-ollama_secret}@db:5432/${POSTGRES_DB:-ollama_chat}
       # Reach host's Ollama from inside the container
       OLLAMA_URL: http://host.docker.internal:11434
+      # Allowlist for client-supplied Ollama URLs (SSRF protection)
+      OLLAMA_ALLOWED_HOSTS: "*.trycloudflare.com,localhost,127.0.0.1,host.docker.internal"
       # Fail fast if token not set — no silent empty-token deployment
       API_TOKEN: ${API_TOKEN:?API_TOKEN must be set in docker/.env}
     ports:

@@ -36,12 +36,15 @@ export interface UseChatResult {
 export interface UseChatOptions {
   model: string;
   systemPrompt?: string;
+  /** Optional Ollama base URL forwarded to the backend (allowlist-enforced). */
+  ollamaUrl?: string;
   /** Fired when the backend creates a brand-new chat on first send. */
   onChatCreated?: (chat: { id: number; title: string }) => void;
 }
 
 export function useChat(options: UseChatOptions): UseChatResult {
   const { model, onChatCreated } = options;
+  const ollamaUrl = options.ollamaUrl;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [chatId, setChatId] = useState<number | undefined>(undefined);
@@ -132,7 +135,7 @@ export function useChat(options: UseChatOptions): UseChatResult {
 
       try {
         for await (const ev of streamChatApi(
-          { chatId: activeChatId, message: trimmed, model },
+          { chatId: activeChatId, message: trimmed, model, ollamaUrl },
           controller.signal,
         )) {
           if (ev.type === 'chat_created') {
@@ -193,7 +196,7 @@ export function useChat(options: UseChatOptions): UseChatResult {
         abortRef.current = null;
       }
     },
-    [model, onChatCreated],
+    [model, ollamaUrl, onChatCreated],
   );
 
   return { messages, chatId, isStreaming, progress, error, send, stop, clear, loadChat };

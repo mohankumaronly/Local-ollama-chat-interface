@@ -9,6 +9,7 @@ export type StreamChatParams = {
   chatId?: number;
   userMessage: string;
   model: string;
+  baseUrl: string;   // resolved Ollama target (local or tunnel)
   signal?: AbortSignal;
 };
 
@@ -47,7 +48,7 @@ export async function* streamChat(
   // 4. Stream from Ollama, accumulate text
   let assistantText = '';
   try {
-    for await (const chunk of streamOllamaChat(ollamaMessages, params.model, params.signal)) {
+    for await (const chunk of streamOllamaChat(params.baseUrl, ollamaMessages, params.model, params.signal)) {
       if (chunk.type === 'token') {
         assistantText += chunk.text;
         yield { type: 'token', text: chunk.text };

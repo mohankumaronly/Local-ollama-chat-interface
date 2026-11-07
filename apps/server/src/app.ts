@@ -5,6 +5,7 @@ import { logger } from './lib/logger.js';
 import { requireAuth } from './middleware/auth.js';
 import { healthRouter } from './modules/health/health.routes.js';
 import { chatRouter } from './modules/chat/chat.routes.js';
+import { ollamaRouter } from './modules/ollama/ollama.routes.js';
 
 export function createApp() {
   const app = express();
@@ -39,6 +40,7 @@ export function createApp() {
   app.use(requireAuth);  // 401 for unauthenticated requests (health is exempt)
 
   app.use('/api/v1/health', healthRouter);
+  app.use('/api/v1/ollama', ollamaRouter);
   app.use('/api/v1', chatRouter);
 
   // Global error handler — must be last

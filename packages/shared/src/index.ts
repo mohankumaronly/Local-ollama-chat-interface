@@ -42,7 +42,17 @@ export type ChatRequestBody = {
   chatId?: number;
   message: string;
   model: string;
+  /** Optional Ollama base URL. When omitted the backend falls back to env.OLLAMA_URL. */
+  ollamaUrl?: string;
 };
+
+// ============================================================
+// Ollama Test Endpoint
+// ============================================================
+
+export type OllamaTestResponse =
+  | { ok: true; models: string[] }
+  | { ok: false; error: string };
 
 // ============================================================
 // Health

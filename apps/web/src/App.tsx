@@ -51,7 +51,7 @@ const App = () => {
   }, []);
 
   const { messages, chatId, isStreaming, progress, error, send, stop, clear, loadChat } =
-    useChat({ model, onChatCreated: handleChatCreated });
+    useChat({ model, ollamaUrl: baseUrl, onChatCreated: handleChatCreated });
 
   // Load saved chats on mount.
   useEffect(() => {

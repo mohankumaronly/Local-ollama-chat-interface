@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { X, Check, Loader2, AlertCircle, RotateCcw, Server } from 'lucide-react';
-import { checkHealth, isValidUrl, normalizeUrl } from '../lib/ollama';
+import { isValidUrl, normalizeUrl } from '../lib/ollama';
+import { testOllama } from '../lib/api';
 import type { ConnectionStatus } from '../hooks/useConnection';
 
 interface Props {
@@ -15,7 +16,7 @@ interface Props {
 type TestState =
   | { kind: 'idle' }
   | { kind: 'testing' }
-  | { kind: 'ok' }
+  | { kind: 'ok'; models: string[] }
   | { kind: 'fail'; message: string };
 
 const PRESETS: Array<{ label: string; url: string; hint: string }> = [
@@ -28,11 +29,6 @@ const PRESETS: Array<{ label: string; url: string; hint: string }> = [
     label: 'Local (127.0.0.1)',
     url: 'http://127.0.0.1:11434',
     hint: 'Alternative local address',
-  },
-  {
-    label: 'LAN / other PC',
-    url: 'http://192.168.1.50:11434',
-    hint: 'Ollama on another device in your network',
   },
   {
     label: 'Cloudflare Tunnel',
@@ -69,12 +65,12 @@ function SettingsForm({
       return;
     }
     setTest({ kind: 'testing' });
-    const ok = await checkHealth(trimmed, 10000);
-    setTest(
-      ok
-        ? { kind: 'ok' }
-        : { kind: 'fail', message: 'No response. Is the endpoint up and CORS allowed?' },
-    );
+    const result = await testOllama(trimmed);
+    if (result.ok) {
+      setTest({ kind: 'ok', models: result.models });
+    } else {
+      setTest({ kind: 'fail', message: result.error });
+    }
   };
 
   const save = () => {
@@ -211,7 +207,7 @@ function SettingsForm({
               {test.kind === 'ok' && <Check size={14} />}
               {test.kind === 'fail' && <AlertCircle size={14} />}
               {test.kind === 'testing' && 'Testing connection…'}
-              {test.kind === 'ok' && 'Connection successful'}
+              {test.kind === 'ok' && ('Connected — ' + (test.models.join(', ') || '(no models)'))}
               {test.kind === 'fail' && test.message}
             </div>
           )}
