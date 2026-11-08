@@ -111,7 +111,7 @@ function TestResult({ test }: { test: TestState }) {
         {test.kind === 'ok' && <Check size={14} />}
         {test.kind === 'fail' && <AlertCircle size={14} />}
       </span>
-      <span className="min-w-0 break-words">
+      <span className="min-w-0 wrap-break-word">
         {test.kind === 'testing' && 'Testing connection…'}
         {test.kind === 'ok' &&
           `Connected — ${test.models.join(', ') || '(no models)'}`}

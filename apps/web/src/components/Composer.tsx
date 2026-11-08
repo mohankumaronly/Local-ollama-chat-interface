@@ -49,7 +49,7 @@ export function Composer({
             onKeyDown={onKeyDown}
             rows={1}
             placeholder="Message Ollama…"
-            className="max-h-[200px] flex-1 resize-none bg-transparent px-2 py-1.5 text-[15px] leading-6 text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100 dark:placeholder:text-gray-500"
+            className="max-h-50 flex-1 resize-none bg-transparent px-2 py-1.5 text-[15px] leading-6 text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100 dark:placeholder:text-gray-500"
           />
           {isStreaming ? (
             <button
