@@ -92,7 +92,7 @@ const App = () => {
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-6">
           <div className="flex min-w-0 items-center gap-2">
-            <h1 className="truncate text-sm font-semibold">Local Ollama Chat</h1>
+            <h1 className="truncate text-sm font-semibold">Beacon Flux Chat</h1>
             <span className="hidden truncate rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400 sm:inline">
               {model}
             </span>
