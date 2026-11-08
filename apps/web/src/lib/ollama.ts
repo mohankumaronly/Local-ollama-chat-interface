@@ -1,10 +1,5 @@
-import type { OllamaModel, OllamaTagsResponse } from '../types';
-
-/**
- * Direct Ollama helpers. Chat itself now goes through the backend
- * (see lib/api.ts); this module is kept for the model picker and the
- * connection/settings dialog, which talk to Ollama directly.
- */
+import type { OllamaModel } from '../types';
+import { getApiToken } from './api';
 
 /** Default endpoint, overridable at build time via VITE_OLLAMA_URL. */
 export const DEFAULT_OLLAMA_URL =
@@ -27,41 +22,74 @@ export function isValidUrl(url: string): boolean {
 }
 
 /**
- * GET /api/tags — list installed models.
- * Throws a descriptive error on failure.
+ * GET /api/v1/ollama/test — list installed models via the backend proxy.
+ * The browser never talks to Ollama directly, eliminating CORS/network issues.
  */
 export async function listModels(
   baseUrl: string,
   signal?: AbortSignal,
 ): Promise<OllamaModel[]> {
-  const res = await fetch(`${normalizeUrl(baseUrl)}/api/tags`, { signal });
+  const token = getApiToken();
+  const targetUrl = normalizeUrl(baseUrl);
+  
+  const res = await fetch(`/api/v1/ollama/test?url=${encodeURIComponent(targetUrl)}`, {
+    signal,
+    headers: {
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    }
+  });
+
   if (!res.ok) {
     if (res.status === 401 || res.status === 403) {
       throw new Error(
-        `Authentication required (${res.status}). This endpoint needs a token/proxy auth.`,
+        `Authentication required (${res.status}). Please configure your API token in Settings.`,
       );
     }
-    throw new Error(`Ollama /api/tags failed: ${res.status} ${res.statusText}`);
+    const errBody = await res.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(errBody.error || `Ollama test failed: ${res.status}`);
   }
-  const data = (await res.json()) as OllamaTagsResponse;
-  return data.models ?? [];
+  
+  const data = await res.json();
+  
+  // Map string array from backend to OllamaModel object shape
+  return (data.models || []).map((name: string) => ({
+    name: name,
+    model: name,
+    modified_at: new Date().toISOString(),
+    size: 0,
+    digest: '',
+    details: {
+      parent_model: '',
+      format: '',
+      family: '',
+      families: [],
+      parameter_size: '',
+      quantization_level: '',
+    }
+  }));
 }
 
 /**
- * Lightweight health check with a timeout. Returns true if /api/tags responds OK.
- * Never throws — always resolves to a boolean.
+ * Lightweight health check via the backend proxy.
  */
 export async function checkHealth(
   baseUrl: string,
   timeoutMs = 8000,
 ): Promise<boolean> {
   if (!isValidUrl(baseUrl)) return false;
+  
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const token = getApiToken();
+  const targetUrl = normalizeUrl(baseUrl);
+
   try {
-    const res = await fetch(`${normalizeUrl(baseUrl)}/api/tags`, {
+    const res = await fetch(`/api/v1/ollama/test?url=${encodeURIComponent(targetUrl)}`, {
       method: 'GET',
       signal: controller.signal,
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
     });
     return res.ok;
   } catch {

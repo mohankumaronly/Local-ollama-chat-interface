@@ -9,6 +9,7 @@
     "start": "node --env-file=.env dist/index.js",
     "db:generate": "node --env-file=.env ../../node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file=.env ../../node_modules/drizzle-kit/bin.cjs migrate",
+    "db:migrate:prod": "node dist/db/migrate.js",
     "db:studio": "node --env-file=.env ../../node_modules/drizzle-kit/bin.cjs studio"
   },
   "dependencies": {

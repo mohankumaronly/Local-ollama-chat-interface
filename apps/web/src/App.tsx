@@ -7,10 +7,22 @@ import { ChatWindow } from './components/ChatWindow';
 import { Composer } from './components/Composer';
 import { ThemeToggle } from './components/ThemeToggle';
 import { SettingsModal } from './components/SettingsModal';
-import { Settings } from 'lucide-react';
-import { listChats, hasApiToken, type ChatSummary } from './lib/api';
+import { FirstRunModal } from './components/FirstRunModal';
+import { Settings, Check, AlertCircle } from 'lucide-react';
+import {
+  listChats,
+  hasApiToken,
+  getStoredToken,
+  verifyToken,
+  type ChatSummary,
+} from './lib/api';
 
 const DEFAULT_MODEL = 'llama3.2';
+
+interface ToastState {
+  message: string;
+  type?: 'info' | 'success' | 'warn' | 'error';
+}
 
 const App = () => {
   const { theme, toggle } = useTheme();
@@ -28,8 +40,12 @@ const App = () => {
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [chats, setChats] = useState<ChatSummary[]>([]);
-  // Show amber banner on first render if no API token is stored
-  const [showTokenBanner, setShowTokenBanner] = useState(() => !hasApiToken());
+  // First-run modal: blocking on first visit if no token in localStorage
+  const [firstRunOpen, setFirstRunOpen] = useState(() => !hasApiToken());
+  // Amber banner: shown if firstRun modal was cancelled and token is still missing
+  const [showTokenBanner, setShowTokenBanner] = useState(false);
+  // Toast notifications
+  const [toast, setToast] = useState<ToastState | null>(null);
 
   // Derive the effective model. If the current selection isn't available,
   // prefer a plain completion model (e.g. llama3.2) over "thinking" models
@@ -57,10 +73,51 @@ const App = () => {
 
   // Load saved chats on mount.
   useEffect(() => {
+    if (hasApiToken()) {
+      listChats()
+        .then(setChats)
+        .catch((e) => console.error('Failed to load chats', e));
+    }
+  }, []);
+
+  // Background probe: if a token is stored, verify it against backend
+  useEffect(() => {
+    const stored = getStoredToken();
+    if (stored) {
+      verifyToken(stored).then((res) => {
+        if (!res.ok && res.reason === 'unauthorized') {
+          setToast({
+            message: 'API token is no longer valid — open Settings to update.',
+            type: 'warn',
+          });
+        }
+      });
+    }
+  }, []);
+
+  // Toast timer auto-dismiss
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const handleFirstRunSave = () => {
+    setFirstRunOpen(false);
+    setShowTokenBanner(false);
+    setToast({
+      message: "Token saved. You're ready to chat.",
+      type: 'success',
+    });
     listChats()
       .then(setChats)
       .catch((e) => console.error('Failed to load chats', e));
-  }, []);
+  };
+
+  const handleFirstRunCancel = () => {
+    setFirstRunOpen(false);
+    setShowTokenBanner(true);
+  };
 
   const handleSuggestion = (text: string) => {
     void send(text);
@@ -135,7 +192,7 @@ const App = () => {
           </div>
         </header>
 
-        {/* No-token banner — shown on first visit until token is saved in Settings */}
+        {/* No-token banner — shown when first-run modal was cancelled and token is still missing */}
         {showTokenBanner && !hasApiToken() && (
           <div className="flex items-center justify-between gap-3 border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/60 dark:text-amber-100">
             <span>
@@ -204,6 +261,39 @@ const App = () => {
         onSave={(url) => setEndpoint(url)}
         onReset={reset}
       />
+
+      {firstRunOpen && !hasApiToken() && (
+        <FirstRunModal
+          onSaveSuccess={handleFirstRunSave}
+          onCancel={handleFirstRunCancel}
+        />
+      )}
+
+      {toast && (
+        <div
+          role="status"
+          className={`fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-lg px-4 py-3 text-sm shadow-xl transition-all ${
+            toast.type === 'error' || toast.type === 'warn'
+              ? 'border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100'
+              : 'border border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-100'
+          }`}
+        >
+          {toast.type === 'error' || toast.type === 'warn' ? (
+            <AlertCircle size={16} className="shrink-0 text-amber-600 dark:text-amber-400" />
+          ) : (
+            <Check size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+          )}
+          <span>{toast.message}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="ml-2 text-xs opacity-60 hover:opacity-100"
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 };

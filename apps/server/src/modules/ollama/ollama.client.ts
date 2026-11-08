@@ -43,11 +43,23 @@ export function isAllowedOllamaUrl(raw: string): boolean {
 }
 
 /**
+ * Translates a user-entered URL to the URL the Docker container can actually reach.
+ * If the frontend sends http://localhost:11434, Docker must use host.docker.internal.
+ */
+function translateUrlForDocker(rawUrl: string): string {
+  let url = rawUrl;
+  if (url.includes('localhost')) url = url.replace('localhost', 'host.docker.internal');
+  if (url.includes('127.0.0.1')) url = url.replace('127.0.0.1', 'host.docker.internal');
+  return url;
+}
+
+/**
  * GET /api/tags on the given base URL. Throws on HTTP error or network failure.
  * Returned model names are exactly what the target reports.
  */
 export async function listModelsFrom(baseUrl: string): Promise<string[]> {
-  const res = await fetch(`${baseUrl}/api/tags`);
+  const targetUrl = translateUrlForDocker(baseUrl);
+  const res = await fetch(`${targetUrl}/api/tags`);
   if (!res.ok) {
     throw new Error(`Ollama /api/tags returned ${res.status}`);
   }
@@ -84,7 +96,9 @@ export async function* streamOllamaChat(
   model: string,
   signal?: AbortSignal,
 ): AsyncGenerator<OllamaStreamChunk> {
-  const res = await fetch(`${baseUrl}/api/chat`, {
+  const targetUrl = translateUrlForDocker(baseUrl);
+  
+  const res = await fetch(`${targetUrl}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model, messages, stream: true }),

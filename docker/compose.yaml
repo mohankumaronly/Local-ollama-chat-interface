@@ -22,21 +22,26 @@ services:
 
   server:
     build:
-      context: ..                    # repo root — Dockerfile needs root lockfile + manifests
+      context: ..
       dockerfile: apps/server/Dockerfile
     container_name: local-ollama-server
     restart: unless-stopped
     environment:
       NODE_ENV: production
       PORT: 3000
-      # Use service name 'db' and INTERNAL port 5432 (not host-mapped 5433)
       DATABASE_URL: postgresql://${POSTGRES_USER:-ollama}:${POSTGRES_PASSWORD:-ollama_secret}@db:5432/${POSTGRES_DB:-ollama_chat}
-      # Reach host's Ollama from inside the container
-      OLLAMA_URL: http://host.docker.internal:11434
-      # Allowlist for client-supplied Ollama URLs (SSRF protection)
+      
+      # Defaults to host.docker.internal, but can be overridden in docker/.env for remote Ollama
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       OLLAMA_ALLOWED_HOSTS: "*.trycloudflare.com,localhost,127.0.0.1,host.docker.internal"
-      # Fail fast if token not set — no silent empty-token deployment
-      API_TOKEN: ${API_TOKEN:?API_TOKEN must be set in docker/.env}
+      
+      API_TOKEN: ${API_TOKEN:-}
+      API_TOKEN_FILE: /app/data/api-token
+      MIGRATIONS_AUTO: ${MIGRATIONS_AUTO:-true}
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      API_TOKEN_FORCE_DISPLAY: ${API_TOKEN_FORCE_DISPLAY:-false}
+    volumes:
+      - api_token:/app/data
     ports:
       - "127.0.0.1:3000:3000"
     extra_hosts:
@@ -66,3 +71,5 @@ services:
 volumes:
   pgdata:
     name: local-ollama-pgdata
+  api_token:
+    name: local-ollama-api-token

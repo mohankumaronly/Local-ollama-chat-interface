@@ -345,13 +345,10 @@ function SettingsForm({
               </div>
             )}
             <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-              Required for all API calls. Copy from{' '}
+              Required for all API calls. Find your token in the terminal banner
+              by running{' '}
               <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[11px] dark:bg-gray-800">
-                API_TOKEN=
-              </code>{' '}
-              in{' '}
-              <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[11px] dark:bg-gray-800">
-                apps/server/.env
+                docker compose logs server
               </code>
               .
             </p>

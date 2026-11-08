@@ -20,7 +20,7 @@ export type ServerMessage = ChatMessage;
 
 const TOKEN_STORAGE_KEY = 'apiToken';
 
-function getApiToken(): string | null {
+export function getApiToken(): string | null {
   try {
     return localStorage.getItem(TOKEN_STORAGE_KEY);
   } catch {
@@ -41,6 +41,12 @@ export function hasApiToken(): boolean {
   return !!getApiToken();
 }
 
+export const getStoredToken = getApiToken;
+export const setStoredToken = setApiToken;
+export function clearStoredToken(): void {
+  setApiToken(null);
+}
+
 /**
  * Builds a headers object that includes Authorization if a token is stored.
  * Any extra headers passed in are merged; they can override Authorization
@@ -51,6 +57,38 @@ function authHeaders(extra: Record<string, string> = {}): Record<string, string>
   const headers: Record<string, string> = { ...extra };
   if (token) headers['Authorization'] = `Bearer ${token}`;
   return headers;
+}
+
+// ============================================================
+// Auth verification
+// ============================================================
+
+export type VerifyResult =
+  | { ok: true; tokenSourceHint: 'env' | 'file' | 'generated' }
+  | { ok: false; reason: 'unauthorized' | 'network' | 'server' };
+
+export async function verifyToken(token: string): Promise<VerifyResult> {
+  try {
+    const res = await fetch('/api/v1/auth/verify', {
+      headers: {
+        Authorization: `Bearer ${token.trim()}`,
+      },
+      cache: 'no-store',
+    });
+
+    if (res.status === 200) {
+      const data = (await res.json()) as { ok: boolean; tokenSourceHint?: 'env' | 'file' | 'generated' };
+      return { ok: true, tokenSourceHint: data.tokenSourceHint ?? 'file' };
+    }
+
+    if (res.status === 401) {
+      return { ok: false, reason: 'unauthorized' };
+    }
+
+    return { ok: false, reason: 'server' };
+  } catch {
+    return { ok: false, reason: 'network' };
+  }
 }
 
 // ============================================================

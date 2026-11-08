@@ -1,11 +1,16 @@
 import { z } from 'zod';
+import { resolveApiToken } from '../lib/token.js';
+
+const resolved = resolveApiToken();
 
 const EnvSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   DATABASE_URL: z.string().url(),
   OLLAMA_URL: z.string().url().default('http://localhost:11434'),
+  PUBLIC_URL: z.string().url().default('http://localhost:8080'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  API_TOKEN: z.string().min(16, 'API_TOKEN must be at least 16 chars'),
+  API_TOKEN: z.string().min(1, 'API_TOKEN must not be empty'),
+  API_TOKEN_FORCE_DISPLAY: z.enum(['true', 'false']).default('false'),
   // Comma-separated hostname patterns the backend is allowed to call.
   // Wildcards: *.trycloudflare.com matches any subdomain.
   OLLAMA_ALLOWED_HOSTS: z
@@ -19,7 +24,10 @@ const EnvSchema = z.object({
     ),
 });
 
-const parsed = EnvSchema.safeParse(process.env);
+const parsed = EnvSchema.safeParse({
+  ...process.env,
+  API_TOKEN: resolved.token,
+});
 
 if (!parsed.success) {
   console.error('Invalid environment variables:');
@@ -27,4 +35,8 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-export const env = parsed.data;
+export const env = {
+  ...parsed.data,
+  API_TOKEN_SOURCE: resolved.source,
+  API_TOKEN_PATH: resolved.path,
+};

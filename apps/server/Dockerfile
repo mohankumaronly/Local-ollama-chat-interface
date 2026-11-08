@@ -31,8 +31,12 @@ RUN addgroup -S app && adduser -S app -G app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/server/dist ./dist
 COPY --from=build /app/apps/server/package.json ./package.json
+COPY --from=build /app/apps/server/drizzle ./drizzle
+COPY apps/server/entrypoint.sh ./entrypoint.sh
+
+RUN mkdir -p /app/data && chown -R app:app /app/data ./drizzle ./entrypoint.sh && chmod +x ./entrypoint.sh
 
 USER app
 EXPOSE 3000
 
-CMD ["node", "dist/index.js"]
+ENTRYPOINT ["./entrypoint.sh"]
