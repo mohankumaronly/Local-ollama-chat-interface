@@ -46,10 +46,20 @@ export function isAllowedOllamaUrl(raw: string): boolean {
  * Translates a user-entered URL to the URL the Docker container can actually reach.
  * If the frontend sends http://localhost:11434, Docker must use host.docker.internal.
  */
+/**
+ * Translates a user-entered URL to the URL the Docker container can actually reach.
+ * If the frontend sends http://localhost:11434, Docker must use host.docker.internal.
+ * In native dev mode, this translation is skipped.
+ */
 function translateUrlForDocker(rawUrl: string): string {
   let url = rawUrl;
-  if (url.includes('localhost')) url = url.replace('localhost', 'host.docker.internal');
-  if (url.includes('127.0.0.1')) url = url.replace('127.0.0.1', 'host.docker.internal');
+  
+  // Only translate if explicitly running inside Docker
+  if (process.env.DOCKER_ENV === 'true') {
+    if (url.includes('localhost')) url = url.replace('localhost', 'host.docker.internal');
+    if (url.includes('127.0.0.1')) url = url.replace('127.0.0.1', 'host.docker.internal');
+  }
+  
   return url;
 }
 
