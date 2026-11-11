@@ -45,16 +45,41 @@ docker compose logs -f server
 On first boot, the server container automatically applies database migrations, generates a secure 256-bit API token, and prints a startup banner to the terminal logs:
 
 ```
-================================================================
-  Local Ollama Chat Interface is ready
-================================================================
-  Open in browser:  http://localhost:8080
-  API Token:        aBcDeF1234567890_exampleTokenValueHere43chars
-  Ollama URL:       http://localhost:11434
+                            🦙  L O C A L   O L L A M A
+                        chat interface · self-hosted · private
+                                      ✅  READY
 
-  Copy the token above and paste it into the browser on first load.
-  To show this banner again: docker compose logs server
-================================================================
+
+          ╭──────────────────────────────────────────────────────────────╮
+          │   🌐  ACCESS                                                 │
+          │                                                              │
+          │     Open in browser                                          │
+          │     http://localhost:8080                                    │
+          │                                                              │
+          │     Ollama backend                                           │
+          │     http://host.docker.internal:11434                        │
+          ├──────────────────────────────────────────────────────────────┤
+          │   🔑  API TOKEN                                              │
+          │                                                              │
+          │     <YOUR_API_TOKEN>                                         │
+          │                                                              │
+          │     👉 paste this into Settings on first load                │
+          ├──────────────────────────────────────────────────────────────┤
+          │   🛠   RECOVERY & ROTATION                                   │
+          │                                                              │
+          │     📄 Recover token                                         │
+          │        docker compose exec server cat /app/data/api-token    │
+          │                                                              │
+          │     🔄 Rotate token                                          │
+          │        docker volume rm local-ollama-api-token               │
+          │        && docker compose up -d server                        │
+          │                                                              │
+          ╰──────────────────────────────────────────────────────────────╯
+
+
+     💾 token persisted at /app/data/api-token · volume local-ollama-api-token
+             press Ctrl+C to stop · logs: docker compose logs -f server
+
 ```
 
 ### What happens next
